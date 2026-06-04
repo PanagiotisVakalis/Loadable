@@ -1,2 +1,6 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+public enum Loadable<Value: Sendable, Failure: Error & Sendable>: Sendable {
+    case idle
+    case loading
+    case success(Value)
+    case failure(Failure)
+}
