@@ -1,4 +1,5 @@
 import Testing
+import Observation
 @testable import Loadable
 
 struct LoadableTests {
@@ -98,6 +99,42 @@ struct LoadableTests {
             Issue.record("Expected .failure after run")
         }
     }
+
+    // MARK: - @Observable compatibility
+    // Verifies that a Loadable property on an @Observable class requires no
+    // custom property wrappers and that mutations from run(_:) are picked up
+    // by withObservationTracking — the same mechanism SwiftUI views use to
+    // drive re-renders.
+
+    @Test @MainActor func observablePropertyMutationIsTracked() async {
+        let vm = LoadableViewModel()
+
+        // confirmation is Sendable, so it can be called from the @Sendable
+        // onChange closure that withObservationTracking requires under
+        // Swift 6 strict concurrency.
+        await confirmation("state mutation observed") { confirm in
+            withObservationTracking {
+                _ = vm.state
+            } onChange: {
+                confirm()
+            }
+
+            // onChange fires on the first withMutation call (self = .loading),
+            // proving the @Observable contract holds.
+            await vm.state.run { "hello" }
+        }
+
+        if case .success(let value) = vm.state {
+            #expect(value == "hello")
+        } else {
+            Issue.record("Expected .success after run on @Observable property")
+        }
+    }
+}
+
+@Observable
+private final class LoadableViewModel {
+    var state: Loadable<String, TestError> = .idle
 }
 
 private enum TestError: Error, Sendable, Equatable {
