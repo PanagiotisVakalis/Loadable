@@ -9,9 +9,10 @@ public enum Loadable<Value: Sendable, Failure: Error & Sendable>: Sendable {
     // error is already typed as Failure, so no runtime cast is needed and no
     // fallback strategy is required. Callers whose async work throws a different
     // error type must map it to Failure at the call site before invoking run(_:).
-    @MainActor
+    // Isolation is the caller's responsibility: call from @MainActor for view
+    // models, or from within a custom actor's isolation for background services.
     public mutating func run(
-        _ operation: () async throws(Failure) -> Value
+        _ operation: @Sendable () async throws(Failure) -> Value
     ) async {
         self = .loading
         do {
@@ -21,3 +22,6 @@ public enum Loadable<Value: Sendable, Failure: Error & Sendable>: Sendable {
         }
     }
 }
+
+extension Loadable: Equatable where Value: Equatable, Failure: Equatable {}
+extension Loadable: Hashable where Value: Hashable, Failure: Hashable {}

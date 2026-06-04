@@ -70,15 +70,17 @@ struct LoadableTests {
             }
         }
     }
-	
+
     // MARK: - run(_:)
     // These tests verify the full state machine driven by run(_:).
     // The .loading transition is synchronous and happens before the first
     // suspension point — reading `state` inside the closure is excluded by
     // Swift's law of exclusivity (run holds a write lock on self). The
     // pre- and post-states are therefore verified around the call instead.
+    // run(_:) is nonisolated; the @MainActor annotation below is absent to
+    // demonstrate that no specific actor isolation is required.
 
-    @Test @MainActor func runTransitionsToSuccessOnCompletion() async {
+    @Test func runTransitionsToSuccessOnCompletion() async {
         var state: Loadable<String, TestError> = .idle
         await state.run { "hello" }
         if case .success(let value) = state {
@@ -88,15 +90,25 @@ struct LoadableTests {
         }
     }
 
-    @Test @MainActor func runTransitionsToFailureOnThrow() async {
+    @Test func runTransitionsToFailureOnThrow() async {
         var state: Loadable<String, TestError> = .idle
-		await state.run {
-			() throws(TestError) -> String in throw TestError.sample
-		}
+        await state.run { @Sendable () throws(TestError) -> String in throw TestError.sample }
         if case .failure(let error) = state {
             #expect(error == .sample)
         } else {
             Issue.record("Expected .failure after run")
+        }
+    }
+
+    @Test func runWorksFromNonMainActorContext() async {
+        // Proves that run(_:) compiles and executes correctly without any
+        // actor isolation — callers are not restricted to @MainActor.
+        var state: Loadable<String, TestError> = .idle
+        await state.run { "world" }
+        if case .success(let value) = state {
+            #expect(value == "world")
+        } else {
+            Issue.record("Expected .success from non-MainActor context")
         }
     }
 
@@ -130,6 +142,34 @@ struct LoadableTests {
             Issue.record("Expected .success after run on @Observable property")
         }
     }
+
+    // MARK: - Equatable
+    // Conditional conformance: synthesised when Value: Equatable and
+    // Failure: Equatable. Tests cover same-case equality and cross-case
+    // inequality.
+
+    @Test func equatableSameCases() {
+        #expect(Loadable<String, TestError>.idle == .idle)
+        #expect(Loadable<String, TestError>.loading == .loading)
+        #expect(Loadable<String, TestError>.success("x") == .success("x"))
+        #expect(Loadable<String, TestError>.failure(.sample) == .failure(.sample))
+    }
+
+    @Test func equatableDifferentCases() {
+        #expect(Loadable<String, TestError>.idle != .loading)
+        #expect(Loadable<String, TestError>.success("x") != .success("y"))
+    }
+
+    // MARK: - Hashable
+    // Conditional conformance: synthesised when Value: Hashable and
+    // Failure: Hashable. Verified by inserting duplicates into a Set.
+
+    @Test func hashableDeduplicatesInSet() {
+        let set: Set<Loadable<String, TestError>> = [
+            .idle, .loading, .idle, .success("x")
+        ]
+        #expect(set.count == 3)
+    }
 }
 
 @Observable
@@ -137,6 +177,6 @@ private final class LoadableViewModel {
     var state: Loadable<String, TestError> = .idle
 }
 
-private enum TestError: Error, Sendable, Equatable {
+private enum TestError: Error, Sendable, Equatable, Hashable {
     case sample
 }
