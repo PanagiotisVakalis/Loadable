@@ -69,6 +69,35 @@ struct LoadableTests {
             }
         }
     }
+	
+    // MARK: - run(_:)
+    // These tests verify the full state machine driven by run(_:).
+    // The .loading transition is synchronous and happens before the first
+    // suspension point — reading `state` inside the closure is excluded by
+    // Swift's law of exclusivity (run holds a write lock on self). The
+    // pre- and post-states are therefore verified around the call instead.
+
+    @Test @MainActor func runTransitionsToSuccessOnCompletion() async {
+        var state: Loadable<String, TestError> = .idle
+        await state.run { "hello" }
+        if case .success(let value) = state {
+            #expect(value == "hello")
+        } else {
+            Issue.record("Expected .success after run")
+        }
+    }
+
+    @Test @MainActor func runTransitionsToFailureOnThrow() async {
+        var state: Loadable<String, TestError> = .idle
+		await state.run {
+			() throws(TestError) -> String in throw TestError.sample
+		}
+        if case .failure(let error) = state {
+            #expect(error == .sample)
+        } else {
+            Issue.record("Expected .failure after run")
+        }
+    }
 }
 
 private enum TestError: Error, Sendable, Equatable {
