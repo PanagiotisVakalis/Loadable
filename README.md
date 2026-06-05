@@ -159,10 +159,9 @@ struct UserScreen: View {
 ## Roadmap
 
 - **v1** — Core `Loadable` enum + `.run {}` mutation
-- **v2** — `LoadableState`: `@Observable`-native class, exhaustive `Phase` enum, `@MainActor`-safe `run(_:)`
-- **v3** — Retry policies, cancellation helpers
-- **v4** — Pagination states, combined/zipped states
-- **v5** — Swift Macro shortcuts for boilerplate reduction
+- **v2** — Retry policies, cancellation helpers
+- **v3** — Pagination states, combined/zipped states
+- **v4** — Swift Macro shortcuts for boilerplate reduction
 
 ---
 
