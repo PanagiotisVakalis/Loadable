@@ -1,5 +1,7 @@
 # Loadable
 
+![CI](https://github.com/pvbrew/Loadable/actions/workflows/ci.yml/badge.svg?branch=main)
+
 A lightweight, zero-dependency Swift 6 library which replaces scattered `isLoading`, `error`, and `data` variables with a single `@Observable`-compatible `Loadable` enum — built for SwiftUI MVVM and async/await.
 
 ---
