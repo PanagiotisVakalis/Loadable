@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/pvbrew/Loadable/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/pvbrew/Loadable/actions/workflows/ci.yml)
 
-A lightweight, zero-dependency Swift 6 library which replaces scattered `isLoading`, `error`, and `data` variables with a single `@Observable`-compatible `Loadable` enum — built for SwiftUI MVVM and async/await.
+A lightweight, zero-dependency Swift 6 library which replaces scattered `isLoading`, `error`, and `data` variables with a single `@Observable`-native `LoadableState` — built for SwiftUI MVVM and async/await.
 
 ---
 
@@ -28,7 +28,7 @@ Every MVVM app ends up writing some version of this:
 }
 ```
 
-Three variables which must stay in sync, with no guarantee they will. `Loadable` collapses them into one.
+Three variables which must stay in sync, with no guarantee they will. `LoadableState` collapses them into one.
 
 ---
 
@@ -36,7 +36,7 @@ Three variables which must stay in sync, with no guarantee they will. `Loadable`
 
 ```swift
 @Observable class UserViewModel {
-    var userState = Loadable<User, AppError>.idle
+    var userState = LoadableState<User, AppError>()
 
     func loadUser() async {
         await userState.run { try await api.fetchUser() }
@@ -47,7 +47,7 @@ Three variables which must stay in sync, with no guarantee they will. `Loadable`
 Your view switches on a single source of truth:
 
 ```swift
-switch viewModel.userState {
+switch viewModel.userState.phase {
 case .idle:
     Color.clear
 case .loading:
@@ -63,7 +63,7 @@ case .failure(let error):
 
 ## Requirements
 
-- iOS 17+
+- iOS 17+ / macOS 14+ / tvOS 17+ / watchOS 10+ / visionOS 1+
 - Swift 6
 - Xcode 16+
 
@@ -83,7 +83,7 @@ Or add it manually to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/pvbrew/Loadable", from: "1.0.0")
+    .package(url: "https://github.com/pvbrew/Loadable", from: "2.0.0")
 ],
 targets: [
     .target(
@@ -104,7 +104,7 @@ import Loadable
 import Observation
 
 @Observable class UserViewModel {
-    var userState = Loadable<User, AppError>.idle
+    var userState = LoadableState<User, AppError>()
 
     func loadUser() async {
         await userState.run { try await api.fetchUser() }
@@ -120,7 +120,7 @@ struct UserScreen: View {
 
     var body: some View {
         Group {
-            switch viewModel.userState {
+            switch viewModel.userState.phase {
             case .idle:
                 Color.clear
             case .loading:
@@ -136,7 +136,7 @@ struct UserScreen: View {
 }
 ```
 
-### States
+### Phases
 
 | Case | Description |
 |------|-------------|
@@ -151,7 +151,7 @@ struct UserScreen: View {
 
 - **Zero dependencies** — nothing to conflict with your existing stack
 - **Swift 6 concurrency-safe** — `Sendable`-constrained generics throughout
-- **`@Observable` compatible** — works natively with SwiftUI's observation system
+- **`@Observable` native** — `LoadableState` is itself `@Observable`, so every phase transition is automatically tracked by SwiftUI with no extra wiring
 - **No Combine, no UIKit** — async/await only
 
 ---
