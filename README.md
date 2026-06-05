@@ -165,6 +165,12 @@ struct UserScreen: View {
 
 ---
 
+## Example
+
+An example SwiftUI app demonstrating all four `Loadable` states is available in [`Examples/LoadableExample`](Examples/LoadableExample).
+
+---
+
 ## License
 
 MIT. See [LICENSE](LICENSE) for details.
