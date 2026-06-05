@@ -74,14 +74,14 @@ case .failure(let error):
 In Xcode: **File → Add Package Dependencies** and enter the repository URL:
 
 ```
-https://github.com/PanagiotisVakalis/Loadable
+https://github.com/pvbrew/Loadable
 ```
 
 Or add it manually to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/PanagiotisVakalis/Loadable", from: "1.0.0")
+    .package(url: "https://github.com/pvbrew/Loadable", from: "1.0.0")
 ],
 targets: [
     .target(
