@@ -147,6 +147,77 @@ struct UserScreen: View {
 
 ---
 
+## Retry
+
+Pass a `RetryPolicy` to `run` and transient failures are retried for you — `phase` stays `.loading` for the whole sequence, with no flicker to `.failure` between attempts:
+
+```swift
+@Observable class UserViewModel {
+    var userState = LoadableState<User, AppError>()
+
+    func loadUser() async {
+        await userState.run(
+            retry: .exponential(maxAttempts: 3),   // 1s, 2s between attempts
+            shouldRetry: { $0.isTransient }        // skip retries for e.g. 401s
+        ) {
+            try await api.fetchUser()
+        }
+    }
+}
+```
+
+```swift
+struct UserScreen: View {
+    @State private var viewModel = UserViewModel()
+
+    var body: some View {
+        UserContent(phase: viewModel.userState.phase)
+            .task { await viewModel.loadUser() }   // retries happen inside
+    }
+}
+```
+
+Build your own policy from `maxAttempts`, a backoff strategy (`.none`, `.fixed`, or `.exponential(initial:multiplier:max:)`), and an opt-in full-jitter flag. `RetryPolicy.never` — a single attempt — is the default everywhere and matches v1 behaviour exactly.
+
+Backoff sleeps use an injectable `any Clock<Duration>` (defaulting to `ContinuousClock()`), so your own view-model tests can pass a test clock and run instantly.
+
+---
+
+## Cancellation
+
+`load` is the fire-and-forget counterpart to `run`: the state owns the task, so buttons and `onAppear` don't need to hold one. `cancel()` stops the in-flight load, and starting a new `load` cancels the previous one first — the latest call always wins, even if an older operation finishes late:
+
+```swift
+@Observable class SearchViewModel {
+    var results = LoadableState<[Result], AppError>()
+
+    func search(_ query: String) {
+        results.load { try await api.search(query) } // cancels the previous search
+    }
+
+    func cancelSearch() {
+        results.cancel()
+    }
+}
+```
+
+```swift
+struct SearchScreen: View {
+    @State private var viewModel = SearchViewModel()
+
+    var body: some View {
+        ResultsList(phase: viewModel.results.phase)
+            .searchable(text: $query)
+            .onChange(of: query) { viewModel.search(query) }
+            .onDisappear { viewModel.cancelSearch() }
+    }
+}
+```
+
+A cancelled load never sets `.failure` — `phase` reverts to the value it held before `.loading`, so stale data stays visible after a cancelled refresh. `load` also accepts the same `retry:` policy as `run`, and cancelling during a backoff sleep aborts the retry sequence immediately. The awaitable `run` stays caller-owned and un-managed, so both styles coexist.
+
+---
+
 ## Design Goals
 
 - **Zero dependencies** — nothing to conflict with your existing stack
