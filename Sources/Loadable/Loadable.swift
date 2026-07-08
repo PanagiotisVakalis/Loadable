@@ -38,7 +38,26 @@ public final class LoadableState<Value: Sendable, Failure: Error & Sendable> {
     /// The current phase of the loading operation.
     public private(set) var phase: Phase = .idle
 
+    /// The task backing the in-flight managed load, if any.
+    @ObservationIgnored
+    private var activeTask: Task<Void, Never>?
+
+    /// Monotonically increasing token identifying the current managed load.
+    /// A completed task only writes ``phase`` if its generation still
+    /// matches, which guards against out-of-order completion.
+    @ObservationIgnored
+    private var generation = 0
+
+    /// The last stable phase before a managed load set `.loading`, restored
+    /// when that load is cancelled.
+    @ObservationIgnored
+    private var phaseBeforeLoading: Phase = .idle
+
     public init() {}
+
+    deinit {
+        activeTask?.cancel()
+    }
 
     /// Runs `operation`, updating ``phase`` to `.loading` immediately, then
     /// to `.success` or `.failure` depending on the outcome.
@@ -110,6 +129,105 @@ public final class LoadableState<Value: Sendable, Failure: Error & Sendable> {
         case .cancelled:
             phase = previousPhase
         }
+    }
+
+    /// Starts `operation` in a task owned by this state, cancelling any
+    /// load already in flight (latest wins).
+    ///
+    /// Unlike ``run(_:)``, callers don't need to hold a `Task` — this is the
+    /// fire-and-forget style suited to `Button` actions, `onAppear`, and
+    /// `.task {}`:
+    ///
+    /// ```swift
+    /// Button("Refresh") {
+    ///     viewModel.user.load(retry: .exponential(maxAttempts: 3)) {
+    ///         try await api.fetchUser()
+    ///     }
+    /// }
+    /// Button("Cancel") {
+    ///     viewModel.user.cancel()
+    /// }
+    /// ```
+    ///
+    /// The operation runs with cooperative cancellation: ``cancel()``, a
+    /// newer `load`, or deallocation of this state cancels the task, and
+    /// sleeps inside the operation throw `CancellationError`. A cancelled
+    /// load never writes `.failure`; ``phase`` reverts to the value it held
+    /// before `.loading`, and a stale completion never overwrites the phase
+    /// of a newer load. Deallocating the state cancels the in-flight task,
+    /// but don't rely on that for control flow — own the lifecycle
+    /// explicitly via ``cancel()`` or your view's lifetime.
+    ///
+    /// - Parameters:
+    ///   - policy: How many attempts to make and how long to wait between
+    ///     them. Defaults to ``RetryPolicy/never`` (a single attempt).
+    ///   - shouldRetry: Decides whether a thrown error is worth retrying.
+    ///     Defaults to retrying every error.
+    ///   - clock: The clock used for backoff sleeps. Defaults to
+    ///     `ContinuousClock()`; inject a test clock to make view-model tests
+    ///     instant and deterministic.
+    ///   - operation: The async throwing work to perform. Use typed throws
+    ///     (`throws(Failure)`) at the call site when the error type is known
+    ///     at compile time.
+    /// - Returns: The task driving the load, discardable — await its `value`
+    ///   in tests to deterministically wait for completion.
+    @MainActor
+    @discardableResult
+    public func load(
+        retry policy: RetryPolicy = .never,
+        shouldRetry: @escaping @Sendable (Failure) -> Bool = { _ in true },
+        clock: any Clock<Duration> = ContinuousClock(),
+        _ operation: @escaping @Sendable () async throws(Failure) -> Value
+    ) -> Task<Void, Never> {
+        activeTask?.cancel()
+        generation += 1
+        let current = generation
+        if case .loading = phase {} else {
+            phaseBeforeLoading = phase
+        }
+        phase = .loading
+        let task = Task { @MainActor [weak self] in
+            let outcome = await Self.attempt(
+                policy: policy,
+                shouldRetry: shouldRetry,
+                clock: clock,
+                operation: operation
+            )
+            guard let self, self.generation == current else { return }
+            self.activeTask = nil
+            switch outcome {
+            case .success(let value) where !Task.isCancelled:
+                self.phase = .success(value)
+            case .failure(let error) where !Task.isCancelled:
+                self.phase = .failure(error)
+            default:
+                // Cancelled (during an attempt or a backoff sleep): revert
+                // instead of surfacing a failure the caller asked to abandon.
+                self.phase = self.phaseBeforeLoading
+            }
+        }
+        activeTask = task
+        return task
+    }
+
+    /// Cancels the in-flight managed load, if any.
+    ///
+    /// The running operation observes cooperative cancellation, and ``phase``
+    /// immediately reverts to the value it held before `.loading` — so stale
+    /// data stays visible after a cancelled refresh. Calling this with no
+    /// load in flight is a safe no-op that leaves ``phase`` untouched. Loads
+    /// started with ``run(_:)`` are caller-owned and unaffected.
+    ///
+    /// ```swift
+    /// viewModel.user.cancel() // e.g. from a Cancel button or onDisappear
+    /// ```
+    @MainActor
+    public func cancel() {
+        guard let task = activeTask else { return }
+        activeTask = nil
+        generation += 1
+        task.cancel()
+        phase = phaseBeforeLoading
     }
 
     /// The result of a retry sequence: a terminal value, a terminal error,
