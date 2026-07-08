@@ -17,7 +17,7 @@ class UserViewModel {
 		await userState.run {
 			try await Task.sleep(for: .seconds(2))
 			if shouldFail { throw URLError(.badServerResponse) }
-			return User(name: "Panos")
+			return User(name: "Name")
 		}
 	}
 }
