@@ -25,7 +25,7 @@ final class RetryDemoViewModel {
 			let attempt = await self?.recordAttempt() ?? 0
 			try await Task.sleep(for: .seconds(1))
 			if attempt < 3 { throw URLError(.timedOut) }
-			return User(name: "Panos")
+			return User(name: "Name")
 		}
 	}
 
