@@ -1,6 +1,8 @@
 # Loadable
 
 [![CI](https://github.com/pvbrew/Loadable/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/pvbrew/Loadable/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-DocC-blue)](https://pvbrew.github.io/Loadable/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
 A lightweight, zero-dependency Swift 6 library which replaces scattered `isLoading`, `error`, and `data` variables with a single `@Observable`-native `LoadableState` — built for SwiftUI MVVM and async/await.
 
@@ -239,6 +241,12 @@ A cancelled load never sets `.failure` — `phase` reverts to the value it held 
 ## Example
 
 An example SwiftUI app demonstrating all four `Loadable` states is available in [`Examples/LoadableExample`](Examples/LoadableExample).
+
+---
+
+## Documentation
+
+Hosted documentation lives at **[pvbrew.github.io/Loadable](https://pvbrew.github.io/Loadable/)** — start with [Getting Started](https://pvbrew.github.io/Loadable/documentation/loadable/gettingstarted) and [Retry and Cancellation](https://pvbrew.github.io/Loadable/documentation/loadable/retryandcancellation). The DocC catalog also ships with the package: open the Loadable scheme in Xcode and run **Product ▸ Build Documentation**, or read the articles as markdown in [`Sources/Loadable/Loadable.docc`](Sources/Loadable/Loadable.docc).
 
 ---
 
