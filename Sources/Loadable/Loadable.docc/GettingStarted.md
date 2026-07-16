@@ -9,7 +9,7 @@ Add the package to your target — Loadable is SPM-only:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/pvbrew/Loadable", from: "2.0.0")
+    .package(url: "https://github.com/pvbrew/Loadable", from: "2.1.0")
 ],
 targets: [
     .target(
