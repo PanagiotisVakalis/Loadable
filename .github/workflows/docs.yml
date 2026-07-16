@@ -1,0 +1,59 @@
+name: Docs
+
+# Publishes the DocC documentation to GitHub Pages on every release tag (and
+# on demand). Requires Pages to be enabled for the repository with "GitHub
+# Actions" as the source.
+on:
+  push:
+    tags: ["[0-9]*.[0-9]*.[0-9]*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build documentation
+        run: |
+          swift package --allow-writing-to-directory docs \
+            generate-documentation \
+            --target Loadable \
+            --transform-for-static-hosting \
+            --hosting-base-path Loadable \
+            --output-path docs
+      - name: Redirect the site root to the Loadable module page
+        run: |
+          cat > docs/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta http-equiv="refresh" content="0; url=documentation/loadable/">
+              <link rel="canonical" href="https://pvbrew.github.io/Loadable/documentation/loadable/">
+            </head>
+            <body>Redirecting to the <a href="documentation/loadable/">Loadable documentation</a>.</body>
+          </html>
+          EOF
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
